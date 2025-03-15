@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room</title>
+    <link rel="stylesheet" href="/style.css"> <!-- External CSS -->
+    <style>
+        /* Sidebar Styles */
+        #sidebar {
+            position: absolute;
+            left: -250px; /* Initially hidden */
+            top: 0;
+            width: 250px;
+            height: 100%;
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
+            transition: left 0.3s ease-in-out;
+            margin-top: 3%;
+        }
+
+        #sidebar.show {
+            left: 0;
+        }
+
+        #toggleSidebar {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            z-index: 1;
+        }
+
+        #onlineUsersList {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        #onlineUsersList li {
+            padding: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            font-weight: bold;
+            color: #ecf0f1;
+        }
+
+        /* Chat Message Styling */
+        .message {
+            padding: 8px;
+            margin: 5px;
+            border-radius: 5px;
+            background: #f1f1f1;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+
+        .my-message {
+            background: #d1e7ff;
+            text-align: right;
+            margin-left: auto;
+        }
+
+        .other-message {
+            background: #ecf0f1;
+            text-align: left;
+            margin-right: auto;
+        }
+
+        /* Reactions Styling */
+        .reactions {
+            margin-top: 5px;
+            font-size: 18px;
+        }
+
+        .reaction-buttons {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+        .reaction-buttons button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        /* Typing Indicator */
+        #typingIndicator {
+            font-style: italic;
+            color: gray;
+            display: none;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="chat-container">
+        <h2>Welcome, <%= user.username %> 👋</h2>
+
+        <!-- Messages Display Area -->
+        <div id="messages" class="messages-container"></div>
+
+        <!-- Typing Indicator -->
+        <p id="typingIndicator"></p>
+
+        <!-- Message Input Field -->
+        <div class="input-container">
+            <input type="text" id="messageInput" placeholder="Type a message...">
+            <button id="sendBtn">Send</button>
+        </div>
+
+        <!-- Sidebar -->
+        <button id="toggleSidebar">👥 Show Users</button>
+        <div id="sidebar">
+            <h3>Online Users</h3>
+            <ul id="onlineUsersList"></ul>
+        </div>
+
+        <span id="loggedInUser" data-username="<%= user.username %>"></span>
+
+        <!-- Logout Button -->
+        <a href="/logout" class="logout-btn">Logout</a>
+    </div>
+
+    <!-- Socket.io Client Script -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const loggedInUser = document.getElementById("loggedInUser").dataset.username; 
+        const messageContainer = document.getElementById("messages");
+
+        const sidebar = document.getElementById("sidebar");
+        const toggleBtn = document.getElementById("toggleSidebar");
+        const userList = document.getElementById("onlineUsersList");
+
+        // Toggle Sidebar
+        toggleBtn.addEventListener("click", () => {
+            sidebar.classList.toggle("show");
+            toggleBtn.textContent = sidebar.classList.contains("show") ? "❌ Hide Users" : "👥 Show Users";
+        });
+
+        // Receive updated user list
+        socket.on("updateUserList", (users) => {
+            userList.innerHTML = ""; 
+            if (users.length === 0) {
+                userList.innerHTML = "<li>No users online</li>";
+                return;
+            }
+
+            users.forEach(user => {
+                const userItem = document.createElement("li");
+                userItem.textContent = user;
+                userList.appendChild(userItem);
+            });
+        });
+
+        // Send Message
+        document.getElementById("sendBtn").addEventListener("click", () => {
+            const messageInput = document.getElementById("messageInput");
+            const message = messageInput.value.trim();
+
+            if (message) {
+                socket.emit("sendMessage", { sender: loggedInUser, text: message });
+                messageInput.value = ""; // Clear input
+            }
+        });
+
+        // Receive and Display Messages
+        socket.on("receiveMessage", (message) => {
+            const newMessage = document.createElement("div");
+            newMessage.classList.add("message");
+            newMessage.setAttribute("data-id", message._id);
+
+            if (message.sender === loggedInUser) {
+                newMessage.classList.add("my-message"); // Right Side (Blue)
+            } else {
+                newMessage.classList.add("other-message"); // Left Side (Grey)
+            }
+
+            newMessage.innerHTML = `
+                <strong>${message.sender}:</strong> ${message.text}
+                <div class="reactions">${message.reactions ? Object.values(message.reactions).join(" ") : ""}</div>
+                <div class="reaction-buttons">
+                    <button class="react-btn" data-reaction="👍">👍</button>
+                    <button class="react-btn" data-reaction="❤️">❤️</button>
+                    <button class="react-btn" data-reaction="😂">😂</button>
+                    <button class="react-btn" data-reaction="🔥">🔥</button>
+                </div>
+            `;
+            messageContainer.appendChild(newMessage);
+        });
+
+        // ✅ Handle Reactions
+        messageContainer.addEventListener("click", (e) => {
+            if (e.target.classList.contains("react-btn")) {
+                const messageDiv = e.target.closest(".message");
+                const messageId = messageDiv.getAttribute("data-id");
+                const reaction = e.target.getAttribute("data-reaction");
+
+                socket.emit("reactToMessage", { messageId, reaction });
+            }
+        });
+
+        // ✅ Update Reactions in UI
+        socket.on("updateReactions", ({ messageId, reactions }) => {
+            const messageDiv = document.querySelector(`.message[data-id="${messageId}"]`);
+            if (messageDiv) {
+                const reactionsDiv = messageDiv.querySelector(".reactions");
+                reactionsDiv.innerHTML = Object.values(reactions).map(r => `<span>${r}</span>`).join(" ");
+            }
+        });
+
+        // ✅ Typing Indicator Feature
+        const typingIndicator = document.getElementById("typingIndicator");
+        const messageInput = document.getElementById("messageInput");
+
+        let typingTimeout;
+
+        messageInput.addEventListener("input", () => {
+            socket.emit("userTyping", loggedInUser);
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                socket.emit("userStoppedTyping", loggedInUser);
+            }, 2000);
+        });
+
+        socket.on("showTyping", (username) => {
+            if (username !== loggedInUser) {
+                typingIndicator.textContent = `${username} is typing...`;
+                typingIndicator.style.display = "block";
+            }
+        });
+
+        socket.on("hideTyping", () => {
+            typingIndicator.style.display = "none";
+        });
+
+    </script>
+
+</body>
+</html>

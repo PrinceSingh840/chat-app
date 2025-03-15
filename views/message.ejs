@@ -1,0 +1,20 @@
+<div class="message" data-id="<%= message._id %>">
+    <p>
+        <strong><%= message.sender %>:</strong> <%= message.text %>
+    </p>
+    <div class="reactions">
+        <% if (message.reactions) { %>
+            <% Object.keys(message.reactions).forEach(userId => { %>
+                <span class="reaction">
+                    <%= message.reactions[userId] %>
+                </span>
+            <% }); %>
+        <% } %>
+    </div>
+    <div class="reaction-buttons">
+        <button class="react-btn" data-reaction="👍">👍</button>
+        <button class="react-btn" data-reaction="❤️">❤️</button>
+        <button class="react-btn" data-reaction="😂">😂</button>
+        <button class="react-btn" data-reaction="🔥">🔥</button>
+    </div>
+</div>

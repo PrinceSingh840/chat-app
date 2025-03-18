@@ -6,7 +6,7 @@ const passport = require("passport");
 const flash = require("connect-flash");
 const MongoStore = require("connect-mongo");
 const { Server } = require("socket.io");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const User = require("./models/User");
 const Message = require("./models/message"); // ✅ Import Message Model
 require("dotenv").config();
